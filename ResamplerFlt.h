@@ -87,6 +87,7 @@ public:
 	Int64				get_playback_pos () const;
 
 	void				interpolate_block (float dest_ptr [], long nbr_spl);
+	void				interpolate_sample (float* dest_ptr);
 	void				clear_buffers ();
 
 	static const double

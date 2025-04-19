@@ -320,7 +320,85 @@ void	ResamplerFlt::interpolate_block (float dest_ptr [], long nbr_spl)
 	}
 }
 
+/*
+==============================================================================
+Name: interpolate_sample
+Description:
+	Generates a single resampled sample. Care must be taken in order no to let
+	the playback position overtake the sample length.
+Input parameters:
+	- dest_ptr: Pointer on the location where the data must be written.
+Throws: Nothing.
+==============================================================================
+*/
 
+void ResamplerFlt::interpolate_sample(float* dest_ptr)
+{
+	assert(_mip_map_ptr != 0);
+	assert(_interp_ptr != 0);
+	assert(dest_ptr != 0);
+
+	// Fading
+	if (_fade_flag)
+	{
+		float vol_step = 1.0f / (BaseVoiceState::FADE_LEN * 2);
+		float vol = _fade_pos * (vol_step * 2);
+		BaseVoiceState& old_voc = _voice_arr[VoiceInfo_FADEOUT];
+		BaseVoiceState& cur_voc = _voice_arr[VoiceInfo_CURRENT];
+
+		assert(old_voc._ovrspl_flag || cur_voc._ovrspl_flag);
+
+		if (cur_voc._ovrspl_flag && old_voc._ovrspl_flag)
+		{
+			*dest_ptr = vol * _interp_ptr->interp_ovrspl(
+				cur_voc._table_ptr + cur_voc._pos._part._msw,
+				cur_voc._pos._part._lsw
+			) + (1.0f - vol) * _interp_ptr->interp_ovrspl(
+				old_voc._table_ptr + old_voc._pos._part._msw,
+				old_voc._pos._part._lsw
+			);
+		}
+		else if (!cur_voc._ovrspl_flag && old_voc._ovrspl_flag)
+		{
+			*dest_ptr = vol * _interp_ptr->interp_norm(
+				cur_voc._table_ptr + cur_voc._pos._part._msw,
+				cur_voc._pos._part._lsw
+			) + (1.0f - vol) * _interp_ptr->interp_ovrspl(
+				old_voc._table_ptr + old_voc._pos._part._msw,
+				old_voc._pos._part._lsw
+			);
+		}
+		else
+		{
+			*dest_ptr = vol * _interp_ptr->interp_ovrspl(
+				cur_voc._table_ptr + cur_voc._pos._part._msw,
+				cur_voc._pos._part._lsw
+			) + (1.0f - vol) * _interp_ptr->interp_norm(
+				old_voc._table_ptr + old_voc._pos._part._msw,
+				old_voc._pos._part._lsw
+			);
+		}
+
+		_fade_pos++;
+		_fade_flag = (_fade_pos < BaseVoiceState::FADE_LEN);
+	}
+	// Oversampling required
+	else if (_voice_arr[VoiceInfo_CURRENT]._ovrspl_flag)
+	{
+		*dest_ptr = _interp_ptr->interp_ovrspl(
+			_voice_arr[VoiceInfo_CURRENT]._table_ptr + _voice_arr[VoiceInfo_CURRENT]._pos._part._msw,
+			_voice_arr[VoiceInfo_CURRENT]._pos._part._lsw
+		);
+	}
+	// No oversampling
+	else
+	{
+		*dest_ptr = _interp_ptr->interp_norm(
+			_voice_arr[VoiceInfo_CURRENT]._table_ptr + _voice_arr[VoiceInfo_CURRENT]._pos._part._msw,
+			_voice_arr[VoiceInfo_CURRENT]._pos._part._lsw
+		);
+	}
+}
 
 /*
 ==============================================================================
